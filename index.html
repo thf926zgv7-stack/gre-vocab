@@ -75,6 +75,18 @@ body{font-family:'Segoe UI','Microsoft YaHei',sans-serif;background:#0a0e27;colo
 .setting-row{display:flex;align-items:center;gap:12px;margin:8px 0}
 .setting-row input{width:80px;padding:8px 12px;border:1px solid #2a3f60;border-radius:8px;background:#141b3d;color:#e0e0e0;font-size:14px;text-align:center;font-family:inherit}
 .reset-btn{margin-top:20px;padding:10px 20px;background:#b71c1c;color:#ef9a9a;border:none;border-radius:8px;cursor:pointer;font-family:inherit}
+.search-wrap{width:100%;max-width:500px;display:flex;gap:8px;align-items:center}
+.search-input{flex:1;padding:12px 16px;border:1px solid #2a3f60;border-radius:10px;background:#141b3d;color:#e0e0e0;font-size:15px;font-family:inherit;outline:none;transition:.2s}
+.search-input:focus{border-color:#4a6fa0;box-shadow:0 0 0 2px rgba(74,111,160,.2)}
+.search-input::placeholder{color:#546e7a}
+.search-hint{font-size:11px;color:#546e7a;text-align:center;margin-bottom:4px}
+.search-results{width:100%;max-width:500px;display:flex;flex-direction:column;gap:4px}
+.search-item{background:#141b3d;border-radius:8px;padding:10px 14px;display:flex;justify-content:space-between;align-items:baseline;gap:12px;transition:.15s}
+.search-item:hover{background:#1a2540}
+.search-item .sw{font-weight:600;color:#64b5f6;font-size:14px;white-space:nowrap}
+.search-item .sd{color:#90a4ae;font-size:13px;text-align:right;line-height:1.4}
+.search-count{font-size:12px;color:#546e7a;text-align:center;margin-top:8px}
+.no-results{text-align:center;padding:30px;color:#546e7a}
 @media(max-width:500px){.flashcard{height:220px}.flashcard-front .word{font-size:26px}.flashcard-back .definition{font-size:16px}.btn{padding:12px 24px;font-size:14px}.tabs{gap:2px}.tab-btn{padding:8px 14px;font-size:12px}}
 </style>
 </head>
@@ -96,6 +108,7 @@ body{font-family:'Segoe UI','Microsoft YaHei',sans-serif;background:#0a0e27;colo
     <button class="tab-btn" onclick="switchTab('quiz')">Quiz</button>
     <button class="tab-btn" onclick="switchTab('weekly')">Weekly</button>
     <button class="tab-btn" onclick="switchTab('words')">Words</button>
+    <button class="tab-btn" onclick="switchTab('search')">Search</button>
     <button class="tab-btn" onclick="switchTab('settings')">Settings</button>
   </div>
 
@@ -590,6 +603,20 @@ function renderTab(){
     html += `</div>`;
     content.innerHTML = html;
   }
+  else if(tab==='search'){
+    content.innerHTML = `
+      <div class="search-wrap">
+        <input class="search-input" id="searchInput" type="text" placeholder="Search EN or CN… 输入英文或中文搜索"
+         oninput="doSearch(this.value)" autofocus autocomplete="off">
+      </div>
+      <div class="search-hint">${WORDS.length.toLocaleString()} GRE core words &nbsp;|&nbsp; EN ↔ CN</div>
+      <div class="search-results" id="searchResults">
+        <div class="no-results">Type above to search</div>
+      </div>
+      <div class="search-count" id="searchCount"></div>`;
+    // Re-focus after render
+    setTimeout(()=>{const si=document.getElementById('searchInput');if(si)si.focus()},100);
+  }
   else if(tab==='settings'){
     const totalMastered = Object.values(state.wordStates).filter(ws=>ws.level>=SRS_INTERVALS.length).length;
     const totalSeen = Object.values(state.wordStates).filter(ws=>ws.level>=1).length;
@@ -624,6 +651,24 @@ function filterWordList(filter){
     if(filter==='all') item.style.display='flex';
     else item.style.display = item.dataset.level === filter ? 'flex' : 'none';
   });
+}
+
+function doSearch(query){
+  const container = document.getElementById('searchResults');
+  const counter = document.getElementById('searchCount');
+  if(!container || !counter) return;
+  const q = query.trim().toLowerCase();
+  if(!q){container.innerHTML='<div class="no-results">Type above to search</div>';counter.textContent='';return;}
+  const results = WORDS.filter(([w,d])=>w.toLowerCase().includes(q) || d.includes(q));
+  if(results.length === 0){
+    container.innerHTML='<div class="no-results">No matches found</div>';
+    counter.textContent='';
+  }else{
+    const max = 100;
+    const showing = results.slice(0, max);
+    container.innerHTML = showing.map(([w,d])=>`<div class="search-item"><span class="sw">${w}</span><span class="sd">${d}</span></div>`).join('');
+    counter.textContent = `Showing ${Math.min(results.length, max)} of ${results.length} results`;
+  }
 }
 
 function filterByLetter(letter){
