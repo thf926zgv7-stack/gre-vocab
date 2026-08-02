@@ -426,12 +426,23 @@ function renderTab(){
       </div>`;
   }
   else if(tab==='quiz'){
+    if(quizWords.length === 0){
+      quizWords = getWordsForTab('quiz');
+    }
     // Filter out correctly answered words
     const remainingWords = quizWords.filter(([w,d]) => !quizCorrectSet.has(w));
+    if(quizWords.length === 0){
+      content.innerHTML = `<div class="completion">
+        <h2>No words to quiz yet!</h2>
+        <p>Go to <b>Learn</b> mode first to build your vocabulary, then come back.</p>
+        <button class="btn btn-know" onclick="switchTab('learn')" style="margin-top:16px">Start Learning</button>
+      </div>`;
+      return;
+    }
     if(remainingWords.length === 0){
       content.innerHTML = `<div class="completion">
         <h2>Quiz Complete!</h2>
-        <p>All words answered correctly! Score: ${quizScore} / ${quizWords.length} (${(quizScore/Math.max(1,quizWords.length)*100).toFixed(0)}%)</p>
+        <p>All ${quizWords.length} words answered correctly!</p>
         <button class="btn btn-know" onclick="switchTab('quiz')" style="margin-top:16px">New Quiz</button>
       </div>`;
       return;
