@@ -214,16 +214,25 @@ function getWordsForTab(tab){
     });
     return reviewWords.sort(()=>Math.random()-0.5);
   }else if(tab==='quiz'){
+    const today = getToday();
+    const dailyWords = state.dailyLog[today] ? (state.dailyLog[today].newWords || []) : [];
+    const groupDone = (state.dailyLog[today] && state.dailyLog[today].groupDone) ? state.dailyLog[today].groupDone : [0,0,0];
+
+    // Determine unlocked groups (need all 40 completed per group)
+    const unlocked = [];
+    if(groupDone[0] >= 40) unlocked.push(0);
+    if(groupDone[1] >= 40) unlocked.push(1);
+    if(groupDone[2] >= 40) unlocked.push(2);
+
     const seen = WORDS.filter(([w,d])=>{
       const ws = getWordState(w);
-      return ws.level >= 1 && ws.level < 5 && !ws.quizCorrect;
+      if(ws.level < 1 || ws.level >= 5 || ws.quizCorrect) return false;
+      // Only from unlocked groups
+      const wi = dailyWords.indexOf(w);
+      if(wi < 0 || wi >= 120) return false;
+      const group = Math.floor(wi / 40);
+      return unlocked.includes(group);
     });
-    // If not enough seen words, include some new ones
-    if(seen.length < 10){
-      const news = WORDS.filter(([w,d])=>getWordState(w).level === 0)
-        .sort(()=>Math.random()-0.5).slice(0, 10 - seen.length);
-      return [...seen, ...news].sort(()=>Math.random()-0.5);
-    }
     return seen.sort(()=>Math.random()-0.5);
   }
   return [];
@@ -286,6 +295,16 @@ function markWord(word, level, nextReviewDays){
   if(!state.dailyLog[today]) state.dailyLog[today] = {};
   if(!state.dailyLog[today].completed) state.dailyLog[today].completed = [];
   if(!state.dailyLog[today].completed.includes(word)) state.dailyLog[today].completed.push(word);
+
+  // Track group completion (3 groups of 40 words each)
+  const dailyWords = state.dailyLog[today].newWords || [];
+  const wi = dailyWords.indexOf(word);
+  if(wi >= 0 && wi < 120){
+    const group = Math.floor(wi / 40); // 0, 1, or 2
+    if(!state.dailyLog[today].groupDone) state.dailyLog[today].groupDone = [0,0,0];
+    state.dailyLog[today].groupDone[group] = Math.max(state.dailyLog[today].groupDone[group] || 0,
+      dailyWords.slice(group*40, (group+1)*40).filter(w => state.dailyLog[today].completed.includes(w)).length);
+  }
   saveState(state);
 }
 
@@ -412,7 +431,23 @@ function renderTab(){
     const knowFn = isWeekly ? 'weeklyKnow()' : (isReview ? 'reviewKnow()' : 'learnKnow()');
     const unkFn = isWeekly ? 'weeklyUnknown()' : (isReview ? 'reviewUnknown()' : 'learnUnknown()');
 
+    // Build group progress display for Learn mode
+    let groupHTML = '';
+    if(tab==='learn'){
+      const today = getToday();
+      const gd = (state.dailyLog[today] && state.dailyLog[today].groupDone) ? state.dailyLog[today].groupDone : [0,0,0];
+      const total = state.settings.dailyGoal;
+      const perGroup = Math.ceil(total/3);
+      const lockIcons = [gd[0]>=perGroup?'🔓':'🔒', gd[1]>=perGroup?'🔓':'🔒', gd[2]>=perGroup?'🔓':'🔒'];
+      groupHTML = `<div style="font-size:11px;color:#78909c;text-align:center;margin-bottom:6px">
+        G1 ${lockIcons[0]} ${Math.min(gd[0],perGroup)}/${perGroup} &nbsp;
+        G2 ${lockIcons[1]} ${Math.min(gd[1],perGroup)}/${perGroup} &nbsp;
+        G3 ${lockIcons[2]} ${Math.min(gd[2],perGroup)}/${perGroup}
+      </div>`;
+    }
+
     content.innerHTML = `
+      ${groupHTML}
       <div class="card-counter">${label} — ${currentIndex+1} / ${currentWords.length}</div>
       <div class="progress-bar-wrap"><div class="progress-bar" style="width:${((currentIndex)/currentWords.length*100).toFixed(1)}%"></div></div>
       <div class="flashcard" onclick="flipCard()">
@@ -433,6 +468,17 @@ function renderTab(){
       </div>`;
   }
   else if(tab==='quiz'){
+    // Show group unlock status
+    const quizToday = getToday();
+    const quizGd = (state.dailyLog[quizToday] && state.dailyLog[quizToday].groupDone) ? state.dailyLog[quizToday].groupDone : [0,0,0];
+    const quizPerGroup = Math.ceil(state.settings.dailyGoal/3);
+    const quizDailyWords = (state.dailyLog[quizToday] && state.dailyLog[quizToday].newWords) ? state.dailyLog[quizToday].newWords : [];
+    const groupInfo = [
+      quizGd[0]>=quizPerGroup ? `G1` : `G1(${quizGd[0]}/${quizPerGroup})`,
+      quizGd[1]>=quizPerGroup ? `G2` : `G2(${quizGd[1]}/${quizPerGroup})`,
+      quizGd[2]>=quizPerGroup ? `G3` : `G3(${quizGd[2]}/${quizPerGroup})`
+    ].join(' | ');
+
     if(quizWords.length === 0){
       quizWords = getWordsForTab('quiz');
     }
@@ -441,7 +487,8 @@ function renderTab(){
     if(quizWords.length === 0){
       content.innerHTML = `<div class="completion">
         <h2>No words to quiz yet!</h2>
-        <p>Go to <b>Learn</b> mode first to build your vocabulary, then come back.</p>
+        <p>Finish learning a group (40 words) in <b>Learn</b> mode to unlock its Quiz.</p>
+        <p style="font-size:12px;color:#78909c;margin-top:8px">${groupInfo}</p>
         <button class="btn btn-know" onclick="switchTab('learn')" style="margin-top:16px">Start Learning</button>
       </div>`;
       return;
@@ -455,7 +502,7 @@ function renderTab(){
       return;
     }
 
-    // Pick a random word from remaining (not always first)
+    // Pick a random word from remaining
     const ri = Math.floor(Math.random() * remainingWords.length);
     const [correctWord, correctDef] = remainingWords[ri];
     const options = [correctWord];
@@ -471,6 +518,7 @@ function renderTab(){
     currentQuizOptions = options;
 
     content.innerHTML = `
+      <div style="font-size:11px;color:#78909c;text-align:center;margin-bottom:4px">${groupInfo}</div>
       <div class="card-counter">Quiz — Remaining: ${remainingWords.length} | Score: ${quizScore}</div>
       <div class="flashcard" style="cursor:default;height:200px">
         <div class="flashcard-inner" style="transform:none">
