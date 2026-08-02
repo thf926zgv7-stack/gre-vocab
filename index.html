@@ -247,6 +247,7 @@ let quizScore = 0;
 let quizAnswered = false;
 let currentQuizOptions = [];
 let quizCorrectSet = new Set();
+let currentQuizCorrectWord = '';
 
 // Per-tab index preservation
 let tabIndices = {learn:0, review:0, weekly:0, quiz:0};
@@ -389,10 +390,10 @@ function flipCard(){
 }
 
 function quizAnswer(idx){
-  if(quizAnswered || quizIndex >= quizWords.length) return;
+  if(quizAnswered || !currentQuizCorrectWord) return;
   quizAnswered = true;
   tabIndices.quizScore = quizScore;
-  const [correctWord, correctDef] = quizWords[quizIndex];
+  const correctWord = currentQuizCorrectWord;
   const optionBtns = document.querySelectorAll('.quiz-option');
   optionBtns.forEach((opt,i)=>{
     opt.style.pointerEvents = 'none';
@@ -521,6 +522,7 @@ function renderTab(){
     // Pick a random word from remaining
     const ri = Math.floor(Math.random() * remainingWords.length);
     const [correctWord, correctDef] = remainingWords[ri];
+    currentQuizCorrectWord = correctWord;  // Store for quizAnswer to check
     const options = [correctWord];
     while(options.length < 4){
       const randWord = WORDS[Math.floor(Math.random()*WORDS.length)][0];
