@@ -472,7 +472,7 @@ function renderTab(){
           </div>
         </div>
       </div>
-      ${shuffled.map((w,i)=>`<button class="quiz-option" onclick="quizAnswer(${i})">${String.fromCharCode(65+i)}. ${w}</button>`).join('')}`;
+      ${options.map((w,i)=>`<button class="quiz-option" onclick="quizAnswer(${i})">${String.fromCharCode(65+i)}. ${w}</button>`).join('')}`;
   }
   else if(tab==='words'){
     const allStates = WORDS.map(([w,d])=>({word:w, def:d, state:getWordState(w)}));
