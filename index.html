@@ -20,7 +20,7 @@ body{font-family:'Segoe UI','Microsoft YaHei',sans-serif;background:#0a0e27;colo
 .stats-row{display:flex;gap:16px;flex-wrap:wrap;font-size:13px;color:#90a4ae}
 .stats-row span{padding:4px 10px;background:#141b3d;border-radius:12px}
 .main-container{width:100%;max-width:800px;padding:0 20px 40px;display:flex;flex-direction:column;align-items:center;gap:20px}
-.tabs{display:flex;gap:4px;background:#141b3d;border-radius:12px;padding:4px;width:fit-content;max-width:100%;overflow-x:auto;white-space:nowrap;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.tabs{display:flex;gap:4px;background:#141b3d;border-radius:12px;padding:4px;width:100%;overflow-x:scroll;white-space:nowrap;-webkit-overflow-scrolling:touch;scrollbar-width:none;-ms-overflow-style:none;mask-image:linear-gradient(to right,black 85%,transparent 98%);-webkit-mask-image:linear-gradient(to right,black 85%,transparent 98%)}
 .tabs::-webkit-scrollbar{display:none}
 .tab-btn{padding:10px 22px;border:none;border-radius:10px;cursor:pointer;font-size:14px;color:#90a4ae;background:transparent;transition:.2s;font-family:inherit;flex-shrink:0;white-space:nowrap}
 .tab-btn.active{background:#1e3a5f;color:#64b5f6;font-weight:600}
