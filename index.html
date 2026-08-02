@@ -214,11 +214,11 @@ function getWordsForTab(tab){
     });
     return reviewWords.sort(()=>Math.random()-0.5);
   }else if(tab==='quiz'){
-    const allSeen = WORDS.filter(([w,d])=>{
+    const notMastered = WORDS.filter(([w,d])=>{
       const ws = getWordState(w);
-      return ws.level >= 1;
+      return ws.level >= 1 && ws.level < 4;
     });
-    return allSeen.sort(()=>Math.random()-0.5).slice(0, 30);
+    return notMastered.sort(()=>Math.random()-0.5).slice(0, 30);
   }
   return [];
 }
@@ -254,11 +254,10 @@ function switchTab(tab){
     if(currentIndex >= currentWords.length) currentIndex = 0;
   }else if(tab==='quiz'){
     quizWords = getWordsForTab('quiz');
-    quizIndex = tabIndices.quiz || 0;
-    quizScore = (tabIndices.quizScore||0);
+    quizIndex = 0;
+    quizScore = 0;
     quizAnswered = false;
     quizCorrectSet = new Set();
-    if(quizIndex >= quizWords.length) {quizIndex=0;quizScore=0;}
   }
 
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
