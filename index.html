@@ -231,6 +231,7 @@ let quizIndex = 0;
 let quizScore = 0;
 let quizAnswered = false;
 let currentQuizOptions = [];
+let quizCorrectSet = new Set();
 
 // Per-tab index preservation
 let tabIndices = {learn:0, review:0, weekly:0, quiz:0};
@@ -256,6 +257,7 @@ function switchTab(tab){
     quizIndex = tabIndices.quiz || 0;
     quizScore = (tabIndices.quizScore||0);
     quizAnswered = false;
+    quizCorrectSet = new Set();
     if(quizIndex >= quizWords.length) {quizIndex=0;quizScore=0;}
   }
 
@@ -361,9 +363,13 @@ function quizAnswer(idx){
   const selectedWord = currentQuizOptions[idx] || '';
   if(selectedWord === correctWord){
     quizScore++;
+    quizCorrectSet.add(correctWord);
     const ws = getWordState(correctWord);
     ws.correctCount = (ws.correctCount||0)+1;
+    if(ws.level < 2) ws.level = 2;
     if(ws.level < 4) ws.level = Math.min(ws.level+1, 4);
+    const nextDate = new Date(Date.now() + 7*86400000);
+    ws.nextReview = nextDate.toISOString().split('T')[0];
     setWordState(correctWord, ws);
     saveState(state);
   }else{
@@ -421,30 +427,33 @@ function renderTab(){
       </div>`;
   }
   else if(tab==='quiz'){
-    if(quizIndex >= quizWords.length || quizWords.length === 0){
+    // Filter out correctly answered words
+    const remainingWords = quizWords.filter(([w,d]) => !quizCorrectSet.has(w));
+    if(remainingWords.length === 0){
       content.innerHTML = `<div class="completion">
         <h2>Quiz Complete!</h2>
-        <p>Score: ${quizScore} / ${quizWords.length} (${(quizScore/Math.max(1,quizWords.length)*100).toFixed(0)}%)</p>
+        <p>All words answered correctly! Score: ${quizScore} / ${quizWords.length} (${(quizScore/Math.max(1,quizWords.length)*100).toFixed(0)}%)</p>
         <button class="btn btn-know" onclick="switchTab('quiz')" style="margin-top:16px">New Quiz</button>
       </div>`;
       return;
     }
 
-    if(quizIndex === 0 && quizWords.length === 0){
-      quizWords = getWordsForTab('quiz');
-    }
-
-    const [correctWord, correctDef] = quizWords[quizIndex];
+    // Pick next word from remaining (always first, already filtered out correct ones)
+    const [correctWord, correctDef] = remainingWords[0];
     const options = [correctWord];
     while(options.length < 4){
       const randWord = WORDS[Math.floor(Math.random()*WORDS.length)][0];
       if(!options.includes(randWord)) options.push(randWord);
     }
-    const shuffled = options.sort(()=>Math.random()-0.5);
-    currentQuizOptions = shuffled;
+    // Fisher-Yates shuffle
+    for(let i = options.length-1; i > 0; i--){
+      const j = Math.floor(Math.random()*(i+1));
+      [options[i], options[j]] = [options[j], options[i]];
+    }
+    currentQuizOptions = options;
 
     content.innerHTML = `
-      <div class="card-counter">Quiz — ${quizIndex+1} / ${quizWords.length} | Score: ${quizScore}</div>
+      <div class="card-counter">Quiz — Remaining: ${remainingWords.length} | Score: ${quizScore}</div>
       <div class="flashcard" style="cursor:default;height:200px">
         <div class="flashcard-inner" style="transform:none">
           <div class="flashcard-front" style="backface-visibility:visible">
