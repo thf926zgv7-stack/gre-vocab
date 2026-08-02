@@ -168,7 +168,7 @@ function getWordsDueForReview(){
   const today = getToday();
   return WORDS.filter(([w,d])=>{
     const ws = getWordState(w);
-    return ws.nextReview && ws.nextReview <= today && ws.level < 5;
+    return ws.nextReview && ws.nextReview <= today && ws.level < SRS_INTERVALS.length;
   });
 }
 
@@ -208,7 +208,7 @@ function getWordsForTab(tab){
     const reviewWords = [];
     WORDS.forEach(([w,d])=>{
       const ws = getWordState(w);
-      if(ws.learnedDate && ws.learnedDate >= sevenDaysAgo && ws.learnedDate <= today && ws.level < 5){
+      if(ws.learnedDate && ws.learnedDate >= sevenDaysAgo && ws.learnedDate <= today && ws.level < SRS_INTERVALS.length){
         reviewWords.push([w,d]);
       }
     });
@@ -226,7 +226,7 @@ function getWordsForTab(tab){
 
     const seen = WORDS.filter(([w,d])=>{
       const ws = getWordState(w);
-      if(ws.level < 1 || ws.level >= 5 || ws.quizCorrect) return false;
+      if(ws.level < 1 || ws.level >= SRS_INTERVALS.length || ws.quizCorrect) return false;
       // Only from unlocked groups
       const wi = dailyWords.indexOf(w);
       if(wi < 0 || wi >= 120) return false;
@@ -308,10 +308,26 @@ function markWord(word, level, nextReviewDays){
   saveState(state);
 }
 
+// Ebbinghaus SRS intervals (days): 1, 3, 7, 14, 30, 60
+const SRS_INTERVALS = [1, 3, 7, 14, 30, 60];
+
+function srsAdvance(word, currentLevel){
+  // Advance to next SRS stage
+  const nextLevel = Math.min(currentLevel + 1, SRS_INTERVALS.length);
+  const interval = SRS_INTERVALS[nextLevel - 1];
+  markWord(word, nextLevel, interval);
+}
+
+function srsReset(word, currentLevel){
+  // Drop back one stage, review tomorrow
+  const prevLevel = Math.max(1, currentLevel - 1);
+  markWord(word, prevLevel, 1);
+}
+
 function learnKnow(){
   if(currentIndex >= currentWords.length) return;
   const [word, def] = currentWords[currentIndex];
-  markWord(word, 2, 1);
+  markWord(word, 1, 1); // SRS 1: review tomorrow
   currentIndex++;
   renderTab();
   updateStats();
@@ -320,7 +336,7 @@ function learnKnow(){
 function learnUnknown(){
   if(currentIndex >= currentWords.length) return;
   const [word, def] = currentWords[currentIndex];
-  markWord(word, 1, 0);
+  markWord(word, 1, 0); // SRS 1: learning, no next review (goes to quiz pool)
   currentIndex++;
   renderTab();
   updateStats();
@@ -330,11 +346,8 @@ function reviewKnow(){
   if(currentIndex >= currentWords.length) return;
   const [word, def] = currentWords[currentIndex];
   const ws = getWordState(word);
-  if(ws.level >= 4){
-    markWord(word, 5, 30);
-  }else{
-    markWord(word, Math.min(ws.level+1, 4), ws.level>=3?7:3);
-  }
+  const currentLvl = ws.level || 1;
+  srsAdvance(word, currentLvl); // Next SRS stage
   currentIndex++;
   renderTab();
   updateStats();
@@ -343,7 +356,8 @@ function reviewKnow(){
 function reviewUnknown(){
   if(currentIndex >= currentWords.length) return;
   const [word, def] = currentWords[currentIndex];
-  markWord(word, Math.max(1, getWordState(word).level-1), 1);
+  const ws = getWordState(word);
+  srsReset(word, ws.level || 1); // Back one stage, review tomorrow
   currentIndex++;
   renderTab();
   updateStats();
@@ -352,7 +366,8 @@ function reviewUnknown(){
 function weeklyKnow(){
   if(currentIndex >= currentWords.length) return;
   const [word, def] = currentWords[currentIndex];
-  markWord(word, Math.min(getWordState(word).level+1, 5), 3);
+  const ws = getWordState(word);
+  srsAdvance(word, ws.level || 1);
   currentIndex++;
   renderTab();
   updateStats();
@@ -361,7 +376,8 @@ function weeklyKnow(){
 function weeklyUnknown(){
   if(currentIndex >= currentWords.length) return;
   const [word, def] = currentWords[currentIndex];
-  markWord(word, Math.max(1, getWordState(word).level-1), 1);
+  const ws = getWordState(word);
+  srsReset(word, ws.level || 1);
   currentIndex++;
   renderTab();
   updateStats();
@@ -391,9 +407,9 @@ function quizAnswer(idx){
     const ws = getWordState(correctWord);
     ws.quizCorrect = true;
     ws.correctCount = (ws.correctCount||0)+1;
+    // Boost to at least SRS level 2 (first recall), schedule review in 3 days
     if(ws.level < 2) ws.level = 2;
-    if(ws.level < 4) ws.level = Math.min(ws.level+1, 4);
-    const nextDate = new Date(Date.now() + 7*86400000);
+    const nextDate = new Date(Date.now() + 3*86400000);
     ws.nextReview = nextDate.toISOString().split('T')[0];
     setWordState(correctWord, ws);
     saveState(state);
@@ -414,7 +430,7 @@ function renderTab(){
 
   if(tab==='learn' || tab==='review' || tab==='weekly'){
     if(currentIndex >= currentWords.length){
-      const masteredCount = Object.values(state.wordStates).filter(ws=>ws.level>=4).length;
+      const masteredCount = Object.values(state.wordStates).filter(ws=>ws.level>=SRS_INTERVALS.length).length;
       content.innerHTML = `<div class="completion">
         <h2>${tab==='learn'?'Daily Learning Complete!':'Review Complete!'}</h2>
         <p>${tab==='learn'?`You studied ${currentWords.length} words today.`:`You reviewed ${currentWords.length} words.`}</p>
@@ -533,8 +549,9 @@ function renderTab(){
   else if(tab==='words'){
     const allStates = WORDS.map(([w,d])=>({word:w, def:d, state:getWordState(w)}));
     const filterLevel = (l)=>allStates.filter(x=>x.state.level===l);
-    const mastered = filterLevel(4).concat(filterLevel(5));
-    const learning = filterLevel(1).concat(filterLevel(2)).concat(filterLevel(3));
+    const mastered = filterLevel(SRS_INTERVALS.length);
+    const reviewStage = filterLevel(3).concat(filterLevel(4)).concat(filterLevel(5));
+    const learning = filterLevel(1).concat(filterLevel(2));
     const unseen = filterLevel(0);
 
     // Build A-Z buttons
@@ -544,14 +561,15 @@ function renderTab(){
 
     let html = `<div class="dashboard">
       <div class="stat-card"><div class="num">${mastered.length}</div><div class="label">Mastered</div></div>
+      <div class="stat-card"><div class="num">${reviewStage.length}</div><div class="label">Reviewing</div></div>
       <div class="stat-card"><div class="num">${learning.length}</div><div class="label">Learning</div></div>
-      <div class="stat-card"><div class="num">${unseen.length}</div><div class="label">Unseen</div></div>
       <div class="stat-card"><div class="num">${WORDS.length}</div><div class="label">Total</div></div>
     </div>
     <div style="width:100%;max-width:600px;margin-top:8px">
       <select onchange="filterWordList(this.value)" style="padding:8px 12px;border:1px solid #2a3f60;border-radius:8px;background:#141b3d;color:#e0e0e0;font-family:inherit;width:100%;margin-bottom:10px">
         <option value="all">All Words</option>
         <option value="mastered">Mastered (${mastered.length})</option>
+        <option value="reviewing">Reviewing (${reviewStage.length})</option>
         <option value="learning">Learning (${learning.length})</option>
         <option value="unseen">Unseen (${unseen.length})</option>
       </select>
@@ -559,9 +577,10 @@ function renderTab(){
     <div class="az-filter" id="azFilter">${azHtml}</div>
     <div class="word-list" id="wordList">`;
     allStates.sort((a,b)=>a.word.localeCompare(b.word)).forEach(x=>{
-      const tag = x.state.level>=4?'tag-mastered':(x.state.level>=1?'tag-learning':'tag-new');
-      const tagText = x.state.level>=4?'Mastered':(x.state.level>=1?'Learning':'New');
-      html += `<div class="word-item" data-level="${x.state.level>=4?'mastered':(x.state.level>=1?'learning':'unseen')}" data-letter="${x.word[0].toUpperCase()}">
+      const lvl = x.state.level;
+      const tag = lvl>=SRS_INTERVALS.length?'tag-mastered':(lvl>=3?'tag-review':(lvl>=1?'tag-learning':'tag-new'));
+      const tagText = lvl>=SRS_INTERVALS.length?'Mastered':(lvl>=3?'Reviewing':(lvl>=1?'Learning':'New'));
+      html += `<div class="word-item" data-level="${lvl>=SRS_INTERVALS.length?'mastered':(lvl>=3?'reviewing':(lvl>=1?'learning':'unseen'))}" data-letter="${x.word[0].toUpperCase()}">
         <span><span class="w">${x.word}</span> <span class="d">${x.def}</span></span>
         <span class="tag ${tag}">${tagText}</span>
       </div>`;
@@ -570,7 +589,7 @@ function renderTab(){
     content.innerHTML = html;
   }
   else if(tab==='settings'){
-    const totalMastered = Object.values(state.wordStates).filter(ws=>ws.level>=4).length;
+    const totalMastered = Object.values(state.wordStates).filter(ws=>ws.level>=SRS_INTERVALS.length).length;
     const totalSeen = Object.values(state.wordStates).filter(ws=>ws.level>=1).length;
     content.innerHTML = `
       <div class="dashboard">
@@ -649,7 +668,7 @@ function resetAll(){
 }
 
 function updateStats(){
-  const mastered = Object.values(state.wordStates).filter(ws=>ws.level>=4).length;
+  const mastered = Object.values(state.wordStates).filter(ws=>ws.level>=SRS_INTERVALS.length).length;
   const totalSeen = Object.values(state.wordStates).filter(ws=>ws.level>=1).length;
   document.getElementById('dayLabel').textContent = 'Day '+getDayNumber();
   document.getElementById('masteredCount').textContent = 'Mastered: '+mastered;
