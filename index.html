@@ -224,7 +224,7 @@ function getWordsForTab(tab){
         .sort(()=>Math.random()-0.5).slice(0, 10 - seen.length);
       return [...seen, ...news].sort(()=>Math.random()-0.5);
     }
-    return seen.sort(()=>Math.random()-0.5).slice(0, Math.min(30, seen.length));
+    return seen.sort(()=>Math.random()-0.5);
   }
   return [];
 }
