@@ -214,11 +214,17 @@ function getWordsForTab(tab){
     });
     return reviewWords.sort(()=>Math.random()-0.5);
   }else if(tab==='quiz'){
-    const notMastered = WORDS.filter(([w,d])=>{
+    const seen = WORDS.filter(([w,d])=>{
       const ws = getWordState(w);
-      return ws.level < 5;
+      return ws.level >= 1 && ws.level < 5;
     });
-    return notMastered.sort(()=>Math.random()-0.5).slice(0, 30);
+    // If not enough seen words, include some new ones
+    if(seen.length < 10){
+      const news = WORDS.filter(([w,d])=>getWordState(w).level === 0)
+        .sort(()=>Math.random()-0.5).slice(0, 10 - seen.length);
+      return [...seen, ...news].sort(()=>Math.random()-0.5);
+    }
+    return seen.sort(()=>Math.random()-0.5).slice(0, Math.min(30, seen.length));
   }
   return [];
 }
@@ -448,8 +454,9 @@ function renderTab(){
       return;
     }
 
-    // Pick next word from remaining (always first, already filtered out correct ones)
-    const [correctWord, correctDef] = remainingWords[0];
+    // Pick a random word from remaining (not always first)
+    const ri = Math.floor(Math.random() * remainingWords.length);
+    const [correctWord, correctDef] = remainingWords[ri];
     const options = [correctWord];
     while(options.length < 4){
       const randWord = WORDS[Math.floor(Math.random()*WORDS.length)][0];
