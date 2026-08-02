@@ -216,7 +216,7 @@ function getWordsForTab(tab){
   }else if(tab==='quiz'){
     const seen = WORDS.filter(([w,d])=>{
       const ws = getWordState(w);
-      return ws.level >= 1 && ws.level < 5;
+      return ws.level >= 1 && ws.level < 5 && !ws.quizCorrect;
     });
     // If not enough seen words, include some new ones
     if(seen.length < 10){
@@ -370,6 +370,7 @@ function quizAnswer(idx){
     quizScore++;
     quizCorrectSet.add(correctWord);
     const ws = getWordState(correctWord);
+    ws.quizCorrect = true;
     ws.correctCount = (ws.correctCount||0)+1;
     if(ws.level < 2) ws.level = 2;
     if(ws.level < 4) ws.level = Math.min(ws.level+1, 4);
