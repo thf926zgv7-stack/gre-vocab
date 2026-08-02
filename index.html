@@ -230,6 +230,7 @@ let quizWords = [];
 let quizIndex = 0;
 let quizScore = 0;
 let quizAnswered = false;
+let currentQuizOptions = [];
 
 // Per-tab index preservation
 let tabIndices = {learn:0, review:0, weekly:0, quiz:0};
@@ -350,14 +351,14 @@ function quizAnswer(idx){
   quizAnswered = true;
   tabIndices.quizScore = quizScore;
   const [correctWord, correctDef] = quizWords[quizIndex];
-  const options = document.querySelectorAll('.quiz-option');
-  options.forEach((opt,i)=>{
+  const optionBtns = document.querySelectorAll('.quiz-option');
+  optionBtns.forEach((opt,i)=>{
     opt.style.pointerEvents = 'none';
-    if(quizWords[quizIndex + i] && quizWords[quizIndex + i][0] === correctWord){
+    if(currentQuizOptions[i] === correctWord){
       opt.classList.add('correct');
     }
   });
-  const selectedWord = quizWords[quizIndex + idx] ? quizWords[quizIndex + idx][0] : '';
+  const selectedWord = currentQuizOptions[idx] || '';
   if(selectedWord === correctWord){
     quizScore++;
     const ws = getWordState(correctWord);
@@ -366,7 +367,7 @@ function quizAnswer(idx){
     setWordState(correctWord, ws);
     saveState(state);
   }else{
-    options[idx] && options[idx].classList.add('wrong');
+    optionBtns[idx] && optionBtns[idx].classList.add('wrong');
   }
   setTimeout(()=>{
     quizIndex++;
@@ -440,6 +441,7 @@ function renderTab(){
       if(!options.includes(randWord)) options.push(randWord);
     }
     const shuffled = options.sort(()=>Math.random()-0.5);
+    currentQuizOptions = shuffled;
 
     content.innerHTML = `
       <div class="card-counter">Quiz — ${quizIndex+1} / ${quizWords.length} | Score: ${quizScore}</div>
