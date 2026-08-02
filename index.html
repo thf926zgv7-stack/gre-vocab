@@ -216,7 +216,7 @@ function getWordsForTab(tab){
   }else if(tab==='quiz'){
     const notMastered = WORDS.filter(([w,d])=>{
       const ws = getWordState(w);
-      return ws.level >= 1 && ws.level < 4;
+      return ws.level < 5;
     });
     return notMastered.sort(()=>Math.random()-0.5).slice(0, 30);
   }
